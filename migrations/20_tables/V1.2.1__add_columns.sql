@@ -1,4 +1,4 @@
--- V1.0.2__add_columns.sql
+-- V1.2.1__add_columns.sql
 -- Add marketing and lifecycle attributes
 
 USE SCHEMA ANALYTICS.CORE;
