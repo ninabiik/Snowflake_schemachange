@@ -1,0 +1,67 @@
+name: schemachange - deploy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - "release/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    # Map branch -> GitHub Environment
+    environment: ${{ 
+      github.ref_name == 'main' && 'prod' ||
+      startsWith(github.ref_name, 'release/') && 'uat' ||
+      'dev'
+    }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install schemachange
+        run: |
+          pip install schemachange snowflake-connector-python
+
+      - name: Deploy migrations
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          SNOWFLAKE_PRIVATE_KEY_P8: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_P8 }}
+        run: |
+          # Write private key to file for auth (schemachange/snowflake-connector can use it)
+          python - << 'PY'
+          import os, tempfile
+          key = os.environ["SNOWFLAKE_PRIVATE_KEY_P8"]
+          f = tempfile.NamedTemporaryFile(delete=False, mode="w")
+          f.write(key)
+          f.close()
+          print(f.name)
+          PY
+
+          # Pass environment-aware vars into schemachange
+          schemachange \
+            -f migrations \
+            -a "$SNOWFLAKE_ACCOUNT" \
+            -u "$SNOWFLAKE_USER" \
+            -r "$SNOWFLAKE_ROLE" \
+            -w "$SNOWFLAKE_WAREHOUSE" \
+            -d "$SNOWFLAKE_DATABASE" \
+            -c "$SNOWFLAKE_SCHEMA" \
+            --config-file schemachange-config.yml \
+            --create-change-history-table \
+            --vars "env=${{ job.environment }}" \
+            --vars "db_name=$SNOWFLAKE_DATABASE" \
+            --vars "core_schema=CORE" \
+            --vars "views_schema=VIEWS"

@@ -1,0 +1,51 @@
+name: schemachange - PR validate
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install schemachange + snowflake connector
+        run: |
+          pip install schemachange snowflake-connector-python
+
+      - name: Dry run
+        env:
+          SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+          SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+          SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+          SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+          SNOWFLAKE_PRIVATE_KEY_P8: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_P8 }}
+        run: |
+          python - << 'PY'
+          import os, tempfile
+          key = os.environ["SNOWFLAKE_PRIVATE_KEY_P8"]
+          with tempfile.NamedTemporaryFile(delete=False, mode="w") as f:
+            f.write(key)
+            key_path = f.name
+          print("Key written to temp file:", key_path)
+          PY
+
+          schemachange \
+            -f migrations \
+            -a "$SNOWFLAKE_ACCOUNT" \
+            -u "$SNOWFLAKE_USER" \
+            -r "$SNOWFLAKE_ROLE" \
+            -w "$SNOWFLAKE_WAREHOUSE" \
+            -d "$SNOWFLAKE_DATABASE" \
+            -c "$SNOWFLAKE_SCHEMA" \
+            --config-file schemachange-config.yml \
+            --create-change-history-table \
+            --dry-run

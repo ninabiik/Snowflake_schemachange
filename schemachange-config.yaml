@@ -1,0 +1,16 @@
+config-version: 1
+root-folder: migrations
+
+# schemachange state tracking table (put it in a dedicated schema)
+change-history-table: SCHEMA_CHANGE.CHANGE_HISTORY
+
+vars:
+  env: "DEV"
+  db_name: "ANALYTICS_DEV"
+  core_schema: "CORE"
+  views_schema: "VIEWS"
+
+  # roles (you can override by env)
+  app_admin_role: "ANALYTICS_ADMIN"
+  app_rw_role: "ANALYTICS_RW"
+  app_ro_role: "ANALYTICS_RO"
